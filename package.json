@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "obsidian-glink",
+	"version": "0.1.0",
+	"description": "Open Google Drive placeholder files in Obsidian using a manual link registry",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -11,7 +11,7 @@
 		"lint": "eslint ."
 	},
 	"keywords": [],
-	"license": "0-BSD",
+	"license": "MIT",
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^22.15.17",

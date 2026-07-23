@@ -1,92 +1,72 @@
-# Obsidian Sample Plugin
+# GLink
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+GLink opens Google Drive placeholder files such as `.gdoc`, `.gsheet`, and
+`.gslides` inside Obsidian without reading the placeholder or using OAuth.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Google Drive for Desktop can expose these entries as unreadable streamed
+placeholders on Windows. GLink instead asks for the Google URL the first time
+you open each file and saves that mapping in the plugin's local `data.json`.
+The embedded Google page handles its own sign-in.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+## Local installation
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+1. Run `npm install` and `npm run build`.
+2. Create `<vault>/.obsidian/plugins/obsidian-glink/`.
+3. Copy `main.js`, `manifest.json`, and `styles.css` into that folder.
+4. Reload Obsidian.
+5. Enable **GLink** under **Settings → Community plugins**.
+6. Enable **Settings → Files and links → Detect all file extensions** so the
+   Google placeholders appear in the file explorer.
 
-## First time developing plugins?
+For development, clone this repository directly into
+`<vault>/.obsidian/plugins/obsidian-glink/` and run `npm run dev`.
 
-Quick starting guide for new plugin devs:
+## Usage
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+Select a supported Google placeholder in the file explorer. On first open:
 
-## Releasing new releases
+1. Select **Open original in browser**.
+2. Copy the Google document URL from the browser.
+3. Select **Paste Google URL**, paste it, then select **Save and open**.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+To automate this on Windows, enable **Settings → GLink → Automatic linking
+on Windows**. When an unlinked file is opened, GLink invokes Google Drive's
+**Copy link to clipboard** Explorer action, validates the copied URL, saves it,
+and opens the document. This changes the Windows clipboard. If the shell
+action is unavailable or does not produce a new Google URL, the manual paste
+flow remains available.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Enable **Settings → GLink → Dark mode for embedded Google files** to apply an
+experimental softened dark filter to embedded documents. This affects only
+their display inside Obsidian; cell colours and images may look different.
+Use the hue, saturation, brightness, contrast, and inversion controls beneath
+the toggle to tune the result for your display and preferred Google font.
+Google dialogs hosted in separate iframes are outside the filter correction
+scope and may retain visual artefacts.
 
-## Adding your plugin to the community plugin list
+Later opens use the saved URL automatically. GLink also handles
+`![[Folder/Sheet.gsheet]]` embeds. Right-click a placeholder to change, copy,
+or remove its saved link. Manage and back up all mappings under
+**Settings → GLink**.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+Mappings use complete vault-relative paths, so duplicate filenames in
+different folders remain distinct. Mappings migrate when files or folders are
+renamed and are not deleted when Drive temporarily removes a placeholder.
 
-## How to use
+## Supported extensions
 
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+`.gdoc`, `.gsheet`, `.gslides`, `.gdraw`, `.gform`, `.gtable`, `.gscript`,
+and `.gjam`.
 
-## Manually installing the plugin
+## Privacy
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+GLink does not use the Google Drive API, OAuth, telemetry, or any other
+external service of its own. It stores pasted URLs in the plugin's local
+`data.json`. Google receives normal browser traffic when its page is opened in
+the embedded webview.
 
-## Improve code quality with eslint
+## Attribution
 
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-If you have multiple URLs, you can also do:
-
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
-```
-
-## API Documentation
-
-See https://docs.obsidian.md
+The file-view, embedded-webview, and extension-registration approach is
+derived from [oilandrust/obsidian-gdocs](https://github.com/oilandrust/obsidian-gdocs),
+used under the MIT License.

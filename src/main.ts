@@ -1,114 +1,161 @@
+import { FileSystemAdapter, Notice, Plugin, TFile } from 'obsidian';
+import { shell } from 'electron';
 import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
+	getLinkAutomatically,
+	type AutomaticLinkResult,
+} from './automatic-linker';
+import { registerCommands } from './commands';
+import {
+	DEFAULT_GDRIVE_EXTENSIONS,
+	VIEW_TYPE_GLINK,
+	isGoogleShortcut,
+} from './constants';
+import { registerGLinkEmbeds } from './embeds';
+import { LinkRegistry, type RegistryData } from './link-registry';
 import {
 	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
-} from './settings';
+	parseSettings,
+	type GLinkSettings,
+} from './plugin-settings';
+import { GLinkSettingTab } from './settings';
+import { LinkGoogleFileModal } from './ui/link-modal';
+import { GLinkView } from './ui/glink-view';
 
-// Remember to rename these classes and interfaces!
+export default class GLinkPlugin extends Plugin {
+	registry!: LinkRegistry;
+	settings: GLinkSettings = {
+		...DEFAULT_SETTINGS,
+		darkFilter: { ...DEFAULT_SETTINGS.darkFilter },
+	};
+	private saveChain: Promise<void> = Promise.resolve();
+	private automaticLinks = new Map<string, Promise<AutomaticLinkResult>>();
 
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+	async onload(): Promise<void> {
+		const loaded: unknown = await this.loadData();
+		this.settings = parseSettings(loaded);
+		this.registry = LinkRegistry.fromData(
+			loaded,
+			(data) => this.persistData(data),
+		);
 
-	async onload() {
-		await this.loadSettings();
+		this.registerView(
+			VIEW_TYPE_GLINK,
+			(leaf) => new GLinkView(leaf, this),
+		);
+		this.registerExtensions([...DEFAULT_GDRIVE_EXTENSIONS], VIEW_TYPE_GLINK);
+		registerGLinkEmbeds(this);
+		registerCommands(this);
+		this.addSettingTab(new GLinkSettingTab(this.app, this));
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		this.registerEvent(
+			this.app.vault.on('rename', (file, oldPath) => {
+				void this.registry.rename(oldPath, file.path);
+			}),
+		);
+	}
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
+	openLinkModal(file: TFile, onSaved?: () => void): void {
+		new LinkGoogleFileModal(
+			this.app,
+			file,
+			this.registry.get(file.path)?.url ?? '',
+			async (validated) => {
+				await this.registry.set(file.path, validated);
+				new Notice(`Linked ${file.name}`);
+				window.setTimeout(() => {
+					try {
+						this.refreshViews(file.path);
+						onSaved?.();
+					} catch (error) {
+						new Notice(
+							`Link saved, but the view could not open: ${
+								error instanceof Error ? error.message : String(error)
+							}`,
+						);
 					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
+				}, 0);
 			},
+			() => this.openOriginal(file),
+		).open();
+	}
+
+	linkFile(file: TFile, onSaved?: () => void): void {
+		if (!this.settings.automaticLinking) {
+			this.openLinkModal(file, onSaved);
+			return;
+		}
+
+		void this.linkAutomatically(file).then((result) => {
+			if (result.ok) {
+				new Notice(`Linked ${file.name} automatically`);
+				this.refreshViews(file.path);
+				onSaved?.();
+				return;
+			}
+
+			new Notice(result.error);
+			this.openLinkModal(file, onSaved);
 		});
+	}
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+	linkAutomatically(file: TFile): Promise<AutomaticLinkResult> {
+		const active = this.automaticLinks.get(file.path);
+		if (active) {
+			return active;
+		}
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
+		const operation = getLinkAutomatically(this.app, file)
+			.then(async (result) => {
+				if (result.ok) {
+					await this.registry.set(file.path, result.value);
+				}
+				return result;
+			})
+			.finally(() => this.automaticLinks.delete(file.path));
+		this.automaticLinks.set(file.path, operation);
+		return operation;
+	}
+
+	async saveSettings(): Promise<void> {
+		await this.persistData(this.registry.toData());
+	}
+
+	async openOriginal(file: TFile): Promise<void> {
+		const adapter = this.app.vault.adapter;
+		if (!(adapter instanceof FileSystemAdapter)) {
+			new Notice('Opening the original is only available for local vaults');
+			return;
+		}
+
+		const error = await shell.openPath(adapter.getFullPath(file.path));
+		if (error) {
+			new Notice(`Could not open original: ${error}`);
+		}
+	}
+
+	isSupportedFile(file: TFile | null): file is TFile {
+		return file !== null && isGoogleShortcut(file.extension);
+	}
+
+	refreshViews(path?: string): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (
+				leaf.view instanceof GLinkView &&
+				(!path || leaf.view.file?.path === path)
+			) {
+				leaf.view.refresh();
+			}
 		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
 	}
 
-	onunload() {}
-
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
-		);
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
+	private persistData(registryData: RegistryData): Promise<void> {
+		const snapshot = {
+			...registryData,
+			settings: { ...this.settings },
+		};
+		this.saveChain = this.saveChain
+			.catch(() => undefined)
+			.then(() => this.saveData(snapshot));
+		return this.saveChain;
 	}
 }
