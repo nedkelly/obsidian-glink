@@ -16,6 +16,10 @@ interface ElectronWebviewElement extends HTMLElement {
   insertCSS(css: string): Promise<string>;
 }
 
+interface ObsidianWindow extends Window {
+  createEl(tag: string): HTMLElement;
+}
+
 export function mountGoogleWebview(
   parent: HTMLElement,
   url: string,
@@ -23,8 +27,9 @@ export function mountGoogleWebview(
   darkFilter: DarkFilterSettings = DEFAULT_DARK_FILTER,
 ): HTMLElement {
   const container = parent.createDiv({ cls: "glink-webview-container" });
-  // Obsidian's createEl helper rejects webview as a second document element.
-  const webview = parent.ownerDocument.createElement("webview") as ElectronWebviewElement;
+  // Create the custom element without appending it through the parent helper.
+  const ownerWindow = parent.ownerDocument.win as ObsidianWindow;
+  const webview = ownerWindow.createEl("webview") as ElectronWebviewElement;
   webview.setAttribute("src", url);
   webview.setAttribute("webpreferences", "nativeWindowOpen=no");
   webview.className = "glink-webview";
