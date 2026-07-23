@@ -1,9 +1,10 @@
 {
-	"id": "obsidian-glink",
-	"name": "GLink",
-	"version": "0.1.0",
-	"minAppVersion": "1.8.0",
-	"description": "Open Google Drive placeholder files from a manual local link registry.",
-	"author": "Nathan",
-	"isDesktopOnly": true
+  "id": "glink",
+  "name": "GLink",
+  "version": "0.1.0",
+  "minAppVersion": "1.8.0",
+  "description": "Open Google Drive placeholder files in embedded views on Windows using a local link registry.",
+  "author": "Nathan Kelly",
+  "authorUrl": "https://github.com/nedkelly",
+  "isDesktopOnly": true
 }

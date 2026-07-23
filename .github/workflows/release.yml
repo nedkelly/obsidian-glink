@@ -1,50 +1,67 @@
 name: Release Obsidian plugin
 
 on:
-    push:
-        tags:
-            - '*'
+  push:
+    tags:
+      - "*"
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        permissions:
-            contents: write
-            id-token: write
-            attestations: write
-        steps:
-            - uses: actions/checkout@v6
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
 
-            - name: Use Node.js
-              uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-                  cache: 'npm'
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: "npm"
 
-            - name: Build plugin
-              run: |
-                  npm ci
-                  npm run build
+      - name: Build plugin
+        run: |
+          npm ci
+          npm run build
 
-            - name: Check for optional styles
-              id: styles
-              run: |
-                  [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+      - name: Validate release versions
+        shell: bash
+        run: |
+          manifest_version="$(node -p "require('./manifest.json').version")"
+          package_version="$(node -p "require('./package.json').version")"
+          minimum_version="$(node -p "require('./manifest.json').minAppVersion")"
+          mapped_minimum="$(node -p "require('./versions.json')[process.argv[1]] || ''" "$manifest_version")"
 
-            - name: Attest build provenance
-              uses: actions/attest@v4
-              with:
-                  subject-path: |
-                      main.js
-                      ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+          test "$GITHUB_REF_NAME" = "$manifest_version" || {
+            echo "::error::Tag $GITHUB_REF_NAME must match manifest version $manifest_version"
+            exit 1
+          }
+          test "$package_version" = "$manifest_version" || {
+            echo "::error::package.json version $package_version must match manifest version $manifest_version"
+            exit 1
+          }
+          test "$mapped_minimum" = "$minimum_version" || {
+            echo "::error::versions.json must map $manifest_version to $minimum_version"
+            exit 1
+          }
 
-            - name: Create release
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  tag="${GITHUB_REF#refs/tags/}"
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
 
-                  gh release create "$tag" \
-                    --title="$tag" \
-                    --draft \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+
+          gh release create "$tag" \
+            --title="$tag" \
+            --draft \
+            main.js manifest.json styles.css
