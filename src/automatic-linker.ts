@@ -1,4 +1,6 @@
-import { execFile } from "child_process";
+import { Buffer } from "node:buffer";
+import { execFile } from "node:child_process";
+import { env } from "node:process";
 import { clipboard } from "electron";
 import { FileSystemAdapter, Platform, type App, type TFile } from "obsidian";
 import type { ValidatedGoogleUrl } from "./url";
@@ -80,7 +82,7 @@ function runCopyLinkVerb(targetPath: string): Promise<void> {
       "powershell.exe",
       ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodedCommand],
       {
-        env: { ...process.env, GLINK_TARGET_PATH: targetPath },
+        env: { ...env, GLINK_TARGET_PATH: targetPath },
         timeout: 10_000,
         windowsHide: true,
       },

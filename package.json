@@ -1,6 +1,6 @@
 {
   "name": "obsidian-glink",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open Google Drive placeholder files in Obsidian using a manual link registry",
   "private": true,
   "engines": {

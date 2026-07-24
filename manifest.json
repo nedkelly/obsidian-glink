@@ -1,7 +1,7 @@
 {
   "id": "glink",
   "name": "GLink",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.8.0",
   "description": "Open Google Drive placeholder files in embedded views on Windows using a local link registry.",
   "author": "Nathan Kelly",

@@ -302,7 +302,7 @@ export class GLinkSettingTab extends PluginSettingTab {
           }),
       );
 
-    const removeButton = setting.components.at(-1);
+    const removeButton = setting.components[setting.components.length - 1];
     const setDestructive = removeButton
       ? (Reflect.get(removeButton, "setDestructive") as unknown)
       : undefined;
